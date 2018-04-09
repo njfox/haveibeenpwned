@@ -10,6 +10,7 @@
 import requests
 import time 
 import argparse
+import json
 
 parser = argparse.ArgumentParser(description="Verify if email address has been pwned")
 parser.add_argument("-a", dest="address",
@@ -49,20 +50,22 @@ def main():
 
 def checkAddress(email):
     sleep = rate # Reset default acceptable rate
-    check = requests.get("https://" + server + "/api/v2/breachedaccount/" + email + "?includeUnverified=true",
+    check = requests.get("https://" + server + "/api/v2/breachedaccount/" + email + "?includeUnverified=true&truncateResponse=true",
                  proxies = proxies,
                  verify = sslVerify)
     if str(check.status_code) == "404": # The address has not been breached.
-        print OKGREEN + "[i] " + email + " has not been breached." + ENDC
         time.sleep(sleep) # sleep so that we don't trigger the rate limit
         return False
     elif str(check.status_code) == "200": # The address has been breached!
-        print FAILRED + "[!] " + email + " has been breached!" + ENDC
+        out = email + ": "
+        for i in check.json():
+            out += i["Name"] + " "
+        print out + ENDC
         time.sleep(sleep) # sleep so that we don't trigger the rate limit
         return True
     elif str(check.status_code) == "429": # Rate limit triggered
         print WARNING + "[!] Rate limit exceeded, server instructed us to retry after " + check.headers['Retry-After'] + " seconds" + ENDC
-        print WARNING + "    Refer to acceptable use of API: https://haveibeenpwned.com/API/v2#AcceptableUse" + ENDC
+        print WARNING + "    Refer to acceptable use of API: https://haveibeenpwned.com/API/v2#AcceptableUse"
         sleep = float(check.headers['Retry-After']) # Read rate limit from HTTP response headers and set local sleep rate
         time.sleep(sleep) # sleeping a little longer as the server instructed us to do
         checkAddress(email) # try again
